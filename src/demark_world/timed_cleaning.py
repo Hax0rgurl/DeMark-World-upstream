@@ -33,7 +33,7 @@ def clean_timed_frame(frame, frame_index, regions, cleaner):
     return result
 
 
-def _count_decoded_frames(capture):
+def _count_decoded_frames(capture: cv2.VideoCapture) -> int:
     """Count successful decodes with bounded memory, ignoring container estimates."""
     count = 0
     while True:

@@ -1,10 +1,13 @@
 import hashlib
 import shutil
 import subprocess
+from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from src.demark_world.timed_cleaning import clean_timed_frame, clean_timed_video
 from src.demark_world.timed_regions import compile_regions
@@ -202,8 +205,11 @@ def test_numeric_strings_remain_supported():
 
 @pytest.mark.parametrize("reported_count", [0, 10, 100, float("nan")])
 def test_interval_validation_uses_decoded_frames_not_metadata(
-    video, tmp_path, monkeypatch, reported_count
-):
+    video: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reported_count: float,
+) -> None:
     """The final real frame remains selectable despite missing or incorrect metadata."""
     from src.demark_world import timed_cleaning
 
@@ -212,23 +218,23 @@ def test_interval_validation_uses_decoded_frames_not_metadata(
     class MetadataCapture:
         """Expose inaccurate frame metadata without changing actual decoding."""
 
-        def __init__(self, path):
+        def __init__(self, path: str) -> None:
             """Wrap a real decoder for the synthetic input."""
             self.capture = real_capture(path)
 
-        def get(self, prop):
+        def get(self, prop: int) -> float:
             """Substitute only the unreliable frame-count property."""
             return reported_count if prop == cv2.CAP_PROP_FRAME_COUNT else self.capture.get(prop)
 
-        def isOpened(self):
+        def isOpened(self) -> bool:
             """Report whether the underlying decoder opened."""
             return self.capture.isOpened()
 
-        def read(self):
+        def read(self) -> tuple[bool, NDArray[np.uint8] | None]:
             """Decode a real frame unchanged."""
             return self.capture.read()
 
-        def release(self):
+        def release(self) -> None:
             """Close the real decoder."""
             self.capture.release()
 
@@ -274,8 +280,11 @@ def test_interval_past_decoded_end_is_rejected_before_encoding(video, tmp_path, 
 
 @pytest.mark.parametrize("stage", ["mux", "verify"])
 def test_postprocessing_timeouts_preserve_source_and_remove_partial_files(
-    video, tmp_path, monkeypatch, stage
-):
+    video: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
     """Both finishing stages have deadlines and clean up if that deadline expires."""
     from src.demark_world import timed_cleaning
 
@@ -283,7 +292,9 @@ def test_postprocessing_timeouts_preserve_source_and_remove_partial_files(
     original = hashlib.sha256(video.read_bytes()).hexdigest()
     calls = []
 
-    def run_with_timeout(args, **kwargs):
+    def run_with_timeout(
+        args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[bytes]:
         """Inject a deadline expiry only at the requested finishing stage."""
         assert kwargs["timeout"] == timed_cleaning.FFMPEG_POSTPROCESS_TIMEOUT_SECONDS
         current_stage = "verify" if "-xerror" in args else "mux"
