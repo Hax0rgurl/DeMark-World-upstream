@@ -14,7 +14,10 @@ def region_boxes(regions, width: int, height: int) -> list[tuple[int, int, int, 
     for region in regions:
         if not isinstance(region, list | tuple) or len(region) != 4:
             raise ValueError("Each watermark area must contain four coordinates.")
-        x1, y1, x2, y2 = map(float, region)
+        try:
+            x1, y1, x2, y2 = map(float, region)
+        except (TypeError, ValueError) as e:
+            raise ValueError("Watermark coordinates must be numbers.") from e
         if not all(math.isfinite(v) for v in (x1, y1, x2, y2)) or not (
             0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1
         ):
