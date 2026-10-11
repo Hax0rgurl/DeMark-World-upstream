@@ -34,6 +34,13 @@ class DeMarkWorld:
         detector: Any | None = None,
         cleaner: Any | None = None,
     ):
+        """Create the selected cleaner and, by default, its automatic detector.
+
+        Set automatic_detection=False to supply reviewed watermark_regions to run.
+        Injected detector/cleaner objects override construction for that component.
+        detect_batch_size must be positive; the selected cleaner_type still
+        determines whether the timed LaMa path is available.
+        """
         if detect_batch_size < 1:
             raise ValueError("detect_batch_size must be at least 1")
         self.detector = detector if detector is not None else (
@@ -52,6 +59,7 @@ class DeMarkWorld:
         progress_callback: Callable[[int], None] | None = None,
         quiet: bool = False,
     ):
+        """Process supported files recursively, reporting aggregate progress."""
         if output_video_dir_path is None:
             output_video_dir_path = input_video_dir_path.parent / "watermark_removed"
             if not quiet:
@@ -73,6 +81,7 @@ class DeMarkWorld:
             if progress_callback:
 
                 def batch_progress_callback(single_video_progress: int):
+                    """Convert single-video progress to progress across this batch."""
                     overall_progress = int(
                         (idx / video_lengths) * 100 + (single_video_progress / video_lengths)
                     )
@@ -100,6 +109,14 @@ class DeMarkWorld:
         quiet: bool = False,
         watermark_regions: list | None = None,
     ):
+        """Restore a video using detector boxes or explicit timed regions.
+
+        watermark_regions selects the LaMa-only MP4 path. Boxes are normalized;
+        frame intervals are zero-based, start-inclusive and end-exclusive.
+        Bare boxes span the decoded video. This opt-in path preserves existing
+        outputs, checks the complete result, and propagates finishing timeouts.
+        Without regions, the historical automatic-detection workflow is used.
+        """
         if watermark_regions is not None:
             if self.cleaner_type != CleanerType.LAMA:
                 raise ValueError("Timed regions currently support the LaMa backend only")
@@ -391,6 +408,7 @@ class DeMarkWorld:
     def merge_audio_track(
         self, input_video_path: Path, temp_output_path: Path, output_video_path: Path
     ):
+        """Mux available input audio with the legacy silent-video fallback."""
         logger.info("Merging audio track...")
 
         has_audio = False

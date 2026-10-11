@@ -11,6 +11,9 @@ import numpy as np
 
 from src.demark_world.timed_regions import compile_regions
 
+# Allow long local videos while bounding malformed-input mux/verification hangs.
+FFMPEG_POSTPROCESS_TIMEOUT_SECONDS = 3600
+
 
 def clean_timed_frame(frame, frame_index, regions, cleaner):
     """Keep every pixel outside the currently active masks unchanged."""
@@ -30,11 +33,23 @@ def clean_timed_frame(frame, frame_index, regions, cleaner):
     return result
 
 
+def _count_decoded_frames(capture):
+    """Count successful decodes with bounded memory, ignoring container estimates."""
+    count = 0
+    while True:
+        ok, _ = capture.read()
+        if not ok:
+            return count
+        count += 1
+
+
 def clean_timed_video(input_path, output_path, regions, cleaner, progress_callback=None):
     """Stream an MP4 output without loading detector weights or overwriting files.
 
     Start frames are inclusive, end frames exclusive. Audio is preserved through
     AAC muxing; encoding, decoding, and mux failures never publish a partial file.
+    An initial decode pass supplies exact interval bounds. Muxing and final
+    verification each have a one-hour timeout; timeout failures are propagated.
     """
     input_path, output_path = Path(input_path), Path(output_path)
     if output_path.suffix.lower() != ".mp4":
@@ -47,11 +62,18 @@ def clean_timed_video(input_path, output_path, regions, cleaner, progress_callba
             raise ValueError("Cannot open the input video")
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = capture.get(cv2.CAP_PROP_FPS)
-        if width <= 0 or height <= 0 or total <= 0 or not math.isfinite(fps) or fps <= 0:
+        if width <= 0 or height <= 0 or not math.isfinite(fps) or fps <= 0:
             raise ValueError("Input video has invalid metadata")
+        total = _count_decoded_frames(capture)
+        if total == 0:
+            raise ValueError("Input video contains no decodable frames")
         compiled = compile_regions(regions, width, height, total)
+        # Reopen rather than relying on backend-dependent seek-to-zero behavior.
+        capture.release()
+        capture = cv2.VideoCapture(str(input_path))
+        if not capture.isOpened():
+            raise ValueError("Cannot reopen the input video for processing")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".demark-timed-", dir=output_path.parent) as work:
             work = Path(work)
@@ -136,6 +158,7 @@ def clean_timed_video(input_path, output_path, regions, cleaner, progress_callba
                 ],
                 check=True,
                 capture_output=True,
+                timeout=FFMPEG_POSTPROCESS_TIMEOUT_SECONDS,
             )
             subprocess.run(
                 [
@@ -155,6 +178,7 @@ def clean_timed_video(input_path, output_path, regions, cleaner, progress_callba
                 ],
                 check=True,
                 capture_output=True,
+                timeout=FFMPEG_POSTPROCESS_TIMEOUT_SECONDS,
             )
             # Same-filesystem hard link is atomic and refuses a destination that
             # appeared while processing. Temporary files are removed afterward.

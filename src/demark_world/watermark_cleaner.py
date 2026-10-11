@@ -9,6 +9,7 @@ class WaterMarkCleaner:
         enable_torch_compile: bool = True,
         use_bf16: bool = is_bf16_supported(),
     ):
+        """Construct only the requested backend without importing unrelated backends."""
         if cleaner_type == CleanerType.LAMA:
             from src.demark_world.cleaner.lama_cleaner import LamaCleaner
 

@@ -58,7 +58,7 @@ Moving beyond just Sora v2 in [SoraWatermarkCleaner](https://github.com/linkedli
 
 ## Reviewed timed regions
 
-For intermittent watermarks or detector mistakes, the LaMa Python API accepts reviewed boxes with exact start/stop frames. See [timed regions and the Mac companion app](docs/timed-regions.md). The existing automatic detector workflow remains unchanged.
+For intermittent watermarks or detector mistakes, the LaMa Python API accepts reviewed boxes with exact start/stop frames. See [timed-region API documentation](docs/timed-regions.md). The existing automatic detector workflow remains unchanged.
 
 ## 🛠️ Installation
 

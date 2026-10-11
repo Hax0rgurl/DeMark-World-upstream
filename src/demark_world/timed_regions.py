@@ -8,6 +8,11 @@ from dataclasses import dataclass
 
 
 def region_boxes(regions, width: int, height: int) -> list[tuple[int, int, int, int]]:
+    """Validate normalized rectangles and convert them to enclosing pixel bounds.
+
+    Raise ValueError for malformed, non-numeric, non-finite or out-of-frame
+    coordinates. Numeric strings retain their float-conversion behavior.
+    """
     if not isinstance(regions, list | tuple) or not regions:
         raise ValueError("Draw a box around the watermark before processing.")
     boxes = []
@@ -35,15 +40,24 @@ def region_boxes(regions, width: int, height: int) -> list[tuple[int, int, int, 
 
 @dataclass(frozen=True)
 class TimedRegion:
+    """Immutable pixel rectangle active over an end-exclusive frame interval."""
+
     bbox: tuple[int, int, int, int]
     start_frame: int
     end_frame: int
 
     def active(self, frame: int) -> bool:
+        """Return whether a zero-based frame lies within this end-exclusive interval."""
         return self.start_frame <= frame < self.end_frame
 
 
 def normalize_regions(regions, total_frames: int) -> list[dict]:
+    """Validate frame intervals while retaining labels and verification metadata.
+
+    Bare rectangles cover total_frames. Dictionary regions use inclusive
+    start_frame and exclusive end_frame; both must be integers within the
+    decoded input. Verification markers describe caller-supplied checks.
+    """
     if not isinstance(regions, list | tuple) or not regions:
         raise ValueError("Select at least one watermark area.")
     normalized = []
@@ -87,6 +101,11 @@ def normalize_regions(regions, total_frames: int) -> list[dict]:
 
 
 def compile_regions(regions, width: int, height: int, total_frames: int) -> list[TimedRegion]:
+    """Compile validated rectangles and reject suggestions without identity checks.
+
+    This validates the caller-provided marker, not the branding itself.
+    Callers must supply reviewed regions and the actual decoded frame count.
+    """
     regions = normalize_regions(regions, total_frames)
     if any(r["source"] == "suggested" and r.get("verification") != "named-ocr-v1" for r in regions):
         raise ValueError(
