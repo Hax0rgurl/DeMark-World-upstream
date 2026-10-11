@@ -29,9 +29,19 @@ class DeMarkWorld:
         enable_torch_compile: bool = ENABLE_E2FGVI_HQ_TORCH_COMPILE,
         detect_batch_size: int = DEFAULT_DETECT_BATCH_SIZE,
         use_bf16: bool = is_bf16_supported(),
+        *,
+        automatic_detection: bool = True,
+        detector: Any | None = None,
+        cleaner: Any | None = None,
     ):
-        self.detector = DeMarkWorldDetector()
-        self.cleaner = WaterMarkCleaner(cleaner_type, enable_torch_compile, use_bf16=use_bf16)
+        if detect_batch_size < 1:
+            raise ValueError("detect_batch_size must be at least 1")
+        self.detector = detector if detector is not None else (
+            DeMarkWorldDetector() if automatic_detection else None
+        )
+        self.cleaner = cleaner if cleaner is not None else WaterMarkCleaner(
+            cleaner_type, enable_torch_compile, use_bf16=use_bf16
+        )
         self.cleaner_type = cleaner_type
         self.detect_batch_size = detect_batch_size
 
@@ -88,7 +98,19 @@ class DeMarkWorld:
         output_video_path: Path,
         progress_callback: Callable[[int], None] | None = None,
         quiet: bool = False,
+        watermark_regions: list | None = None,
     ):
+        if watermark_regions is not None:
+            if self.cleaner_type != CleanerType.LAMA:
+                raise ValueError("Timed regions currently support the LaMa backend only")
+            from src.demark_world.timed_cleaning import clean_timed_video
+
+            return clean_timed_video(
+                input_video_path, output_video_path, watermark_regions,
+                self.cleaner, progress_callback=progress_callback,
+            )
+        if self.detector is None:
+            raise ValueError("Supply watermark_regions when automatic detection is disabled")
         input_video_loader = VideoLoader(input_video_path)
         output_video_path.parent.mkdir(parents=True, exist_ok=True)
         width = input_video_loader.width
